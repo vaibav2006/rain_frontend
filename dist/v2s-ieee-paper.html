@@ -1,0 +1,1056 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      V2S Rainfall Prediction And Crop Safety Portal: Manual CNN, Explainable AI, and Smart-Climate Decision Support
+    </title>
+    <style>
+      :root {
+        --paper-bg: #edf2f7;
+        --paper-card: #ffffff;
+        --ink: #10141a;
+        --muted: #4b5b6d;
+        --line: #d5deea;
+        --accent: #0a5ea8;
+        --accent-soft: #e8f4ff;
+        --success: #0f9d6e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Times New Roman", "Cambria", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 10% 10%, #d8ebff 0, transparent 30%),
+          radial-gradient(circle at 88% 0%, #defff1 0, transparent 25%),
+          var(--paper-bg);
+      }
+      .wrap { max-width: 920px; margin: 1.5rem auto; padding: 0 1rem 2.5rem; }
+      .paper {
+        width: min(100%, 210mm);
+        margin: 0 auto;
+        background: var(--paper-card);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 0 22px 52px rgba(18, 38, 63, 0.12);
+        padding: 1.4rem 1.5rem;
+      }
+      .back-link { display: inline-block; margin-bottom: 1rem; color: var(--accent); font-size: 0.9rem; }
+      h1 { margin: 0; font-size: 1.58rem; line-height: 1.25; }
+      .authors, .affiliation { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.94rem; }
+      .authors strong { color: #1f3246; font-weight: 700; }
+      .badges { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.95rem; }
+      .badges span {
+        padding: 0.4rem 0.6rem; border-radius: 999px; border: 1px solid #b5d2f0;
+        background: var(--accent-soft); color: #13426e; font-size: 0.8rem;
+      }
+      .paper-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin: 0.95rem 0 0.8rem;
+      }
+      .toolbar-button {
+        border: 1px solid #a9c8e8;
+        background: #f3f9ff;
+        color: #123c63;
+        border-radius: 8px;
+        padding: 0.38rem 0.62rem;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+      .toolbar-button:hover { background: #e7f2ff; }
+      .paper-body {
+        margin-top: 0.35rem;
+        column-count: 2;
+        column-gap: 1.2rem;
+        column-rule: 1px solid var(--line);
+        column-fill: balance;
+      }
+      .paper-body > * {
+        break-inside: avoid;
+      }
+      .section-title {
+        margin: 0.95rem 0 0.42rem;
+        font-size: 0.96rem;
+        letter-spacing: 0.02em;
+        text-align: left;
+        break-after: avoid-column;
+      }
+      p, li { margin: 0.36rem 0; text-align: justify; line-height: 1.38; font-size: 0.86rem; }
+      p { orphans: 3; widows: 3; }
+      .abstract { margin-top: 0.9rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0.85rem 0; }
+      .keywords { margin-top: 0.7rem; font-size: 0.93rem; }
+      .grid-2, .grid-3, .grid-4 { display: grid; gap: 0.8rem; }
+      .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      figure { margin: 0.8rem 0; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; padding: 0.65rem; }
+      figure img, figure svg { width: 100%; display: block; border-radius: 8px; }
+      figcaption { margin-top: 0.45rem; color: var(--muted); font-size: 0.84rem; }
+      table { width: 100%; border-collapse: collapse; margin: 0.6rem 0; font-size: 0.79rem; }
+      th, td { border: 1px solid var(--line); padding: 0.42rem 0.46rem; text-align: left; vertical-align: top; }
+      th { background: #f2f7fd; }
+      .small-note { color: var(--muted); font-size: 0.84rem; }
+      .highlight-box { border: 1px solid #b8decb; background: #effbf5; border-radius: 10px; padding: 0.65rem; margin: 0.65rem 0; }
+      .compare-strong { color: var(--success); font-weight: 700; }
+      .refs { margin-top: 0.55rem; padding-left: 1rem; }
+      .refs li { margin: 0.22rem 0; font-size: 0.78rem; line-height: 1.3; }
+      .flow-legend { margin-top: 0.35rem; color: var(--muted); font-size: 0.82rem; }
+      .point-list { margin: 0.32rem 0 0.32rem 1rem; padding: 0; }
+      .point-list li { margin: 0.2rem 0; }
+      section,
+      figure,
+      table,
+      .highlight-box,
+      .point-list,
+      .refs {
+        break-inside: avoid-column;
+      }
+      .export-mode .paper {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+      .export-mode .paper-body {
+        column-count: 2 !important;
+        column-gap: 1.2rem !important;
+        column-rule: 1px solid var(--line) !important;
+      }
+      .export-mode .paper-toolbar,
+      .export-mode .back-link {
+        display: none !important;
+      }
+      @page {
+        size: A4;
+        margin: 12mm;
+      }
+      @media print {
+        body { background: #fff; }
+        .wrap { margin: 0; padding: 0; max-width: 100%; }
+        .paper { border: 0; box-shadow: none; border-radius: 0; width: 100%; max-width: 100%; }
+        .paper-body { column-count: 2 !important; column-rule: 1px solid var(--line); column-gap: 1.2rem; column-fill: balance; }
+        .paper-toolbar, .back-link { display: none !important; }
+      }
+      @media (max-width: 920px) {
+        .paper { padding: 1.3rem 1rem; }
+        body:not(.export-mode) .paper-body { column-count: 1; column-rule: 0; }
+        .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+        h1 { font-size: 1.46rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <article class="paper">
+        <a class="back-link" href="/">Back to V2S Portal</a>
+        <h1>
+          V2S Rainfall Prediction And Crop Safety Portal: Manual CNN, Explainable AI, and Smart-Climate Decision Support
+        </h1>
+        <p class="authors">
+          Santhosh Kumar K,&nbsp; Vaibav Ram M,&nbsp;
+          <strong>Mrs.P.Rajalakshmi (Assistant Professor,IT)</strong>,&nbsp; Vijay Prabu K
+        </p>
+        <p class="affiliation">V2S Rainfall Prediction And Crop Safety Research Team</p>
+        <div class="badges">
+          <span>Model: Manual Convolutional Neural Network</span>
+          <span>Explainability: Grad-CAM Heatmaps</span>
+          <span>SDG 2: Zero Hunger</span>
+          <span>SDG 8: Decent Work and Economic Growth</span>
+          <span>SDG 13: Climate Action</span>
+        </div>
+        <div class="paper-toolbar">
+          <button id="download-word-btn" class="toolbar-button" type="button">Download Word</button>
+          <button id="download-pdf-btn" class="toolbar-button" type="button">Save PDF (Copyable Text)</button>
+          <button id="download-image-btn" class="toolbar-button" type="button">Download Page Images</button>
+          <button id="share-paper-btn" class="toolbar-button" type="button">Share Paper</button>
+        </div>
+        <div class="paper-body">
+
+        <section class="abstract">
+          <h2 class="section-title">Abstract</h2>
+          <p>
+            This manuscript presents the V2S Rainfall Prediction And Crop Safety Portal, an explainable
+            smart-climate framework for cloud-image rainfall inference and crop advisory support.
+            The proposed classifier is a manually coded convolutional neural network where each layer is
+            exposed through formulas, statistical tables, and transformed feature maps.
+          The system integrates end-user-oriented explainability via Grad-CAM attention, and a
+            crop-aware alert mechanism that triggers when rain confidence exceeds 70%.
+            In the latest project revision, advisory logic is intentionally location-independent:
+            the crop guidance is derived only from cloud-image confidence signals and crop choice.
+            A dedicated confidence chart is included to make alert threshold behavior explicit for users.
+            Comparative analysis using a baseline protocol demonstrates stronger interpretability,
+            higher practical usability, and improved deployment readiness.
+            The manuscript provides detailed architecture flowcharts, preprocessing stage visuals,
+            layer-output tables, metric graphs, and operational analysis for field deployment.
+          </p>
+          <p class="keywords">
+            <strong>Index Terms:</strong> Rainfall Prediction, Cloud Image Analytics, CNN, Explainable AI,
+            Grad-CAM, Agricultural Decision Support, Smart Climate, SDG-linked AI
+          </p>
+        </section>
+
+        <h2 class="section-title">I. Introduction</h2>
+        <p>
+          Rainfall timing uncertainty leads to avoidable losses in pesticide timing, irrigation planning,
+          disease control, and harvest quality. Many image-based prediction pipelines still operate as
+          black-box systems with limited interpretability in operational settings.
+          The V2S portal addresses this gap through a transparent smart-climate workflow where users can
+          inspect preprocessing transformations, convolutional responses, pooled features,
+          dense-layer reasoning, and final class probabilities.
+        </p>
+
+        <h2 class="section-title">II. Problem Statement and Objectives</h2>
+        <p>
+          The objective is to build a production-ready rainfall prediction portal that simultaneously
+          provides accurate cloud-image classification and human-readable explanations.
+          The core design requirements are: (1) end-to-end manual CNN mathematics,
+          (2) visual explainability through heatmaps,
+          (3) crop-conditioned confidence alerts,
+          and (4) baseline comparison reporting in manuscript form.
+        </p>
+
+        <h2 class="section-title">III. System Flow and Architecture</h2>
+        <figure>
+          <svg viewBox="0 0 920 210" role="img" aria-label="System architecture flowchart">
+            <rect x="14" y="80" width="132" height="54" rx="10" fill="#eaf3ff" stroke="#7fb0dc" />
+            <text x="80" y="112" text-anchor="middle" font-size="13">Cloud Input</text>
+            <rect x="172" y="80" width="150" height="54" rx="10" fill="#edf9f3" stroke="#8bc5a1" />
+            <text x="247" y="112" text-anchor="middle" font-size="13">Preprocessing</text>
+            <rect x="349" y="80" width="152" height="54" rx="10" fill="#fff6ec" stroke="#d8ad84" />
+            <text x="425" y="112" text-anchor="middle" font-size="13">Manual CNN</text>
+            <rect x="530" y="80" width="140" height="54" rx="10" fill="#f2f0ff" stroke="#afa1d5" />
+            <text x="600" y="112" text-anchor="middle" font-size="13">Grad-CAM</text>
+            <rect x="696" y="80" width="208" height="54" rx="10" fill="#edf9ff" stroke="#78b3cf" />
+            <text x="800" y="104" text-anchor="middle" font-size="13">Crop Safety Alert</text>
+            <text x="800" y="121" text-anchor="middle" font-size="11">(Threshold > 70%)</text>
+            <line x1="146" y1="107" x2="172" y2="107" stroke="#4a6478" stroke-width="2" />
+            <line x1="322" y1="107" x2="349" y2="107" stroke="#4a6478" stroke-width="2" />
+            <line x1="501" y1="107" x2="530" y2="107" stroke="#4a6478" stroke-width="2" />
+            <line x1="670" y1="107" x2="696" y2="107" stroke="#4a6478" stroke-width="2" />
+          </svg>
+          <figcaption>Fig. 1. End-to-end architecture flowchart for V2S smart-climate workflow.</figcaption>
+        </figure>
+        <p class="small-note">
+          Figure 1 explains the operational chain clearly: cloud image input moves through preprocessing
+          and manual CNN inference, then explainability and crop-focused advisory outputs are generated
+          from confidence values in the same request cycle.
+        </p>
+        <figure>
+          <svg viewBox="0 0 920 240" role="img" aria-label="Training and inference flowchart">
+            <rect x="20" y="28" width="200" height="52" rx="10" fill="#edf7ff" stroke="#7faed6" />
+            <text x="120" y="58" text-anchor="middle" font-size="13">Dataset Ingestion</text>
+            <rect x="250" y="28" width="200" height="52" rx="10" fill="#eefbf4" stroke="#8fc9a8" />
+            <text x="350" y="58" text-anchor="middle" font-size="13">Manual CNN Training</text>
+            <rect x="480" y="28" width="200" height="52" rx="10" fill="#fff6eb" stroke="#d8ad84" />
+            <text x="580" y="58" text-anchor="middle" font-size="13">Weight Artifact Save</text>
+            <rect x="710" y="28" width="190" height="52" rx="10" fill="#f2f0ff" stroke="#aca1d4" />
+            <text x="805" y="58" text-anchor="middle" font-size="13">Model Serving</text>
+            <rect x="135" y="146" width="210" height="52" rx="10" fill="#eaf9ff" stroke="#80b8d2" />
+            <text x="240" y="176" text-anchor="middle" font-size="13">Prediction + Layer Logs</text>
+            <rect x="395" y="146" width="200" height="52" rx="10" fill="#eefaf1" stroke="#8bc6a1" />
+            <text x="495" y="176" text-anchor="middle" font-size="13">Grad-CAM + Heatmap</text>
+            <rect x="645" y="146" width="230" height="52" rx="10" fill="#fff3ec" stroke="#d8a885" />
+            <text x="760" y="168" text-anchor="middle" font-size="13">Crop Alert and Advisory</text>
+            <text x="760" y="184" text-anchor="middle" font-size="11">(user crop + confidence aware)</text>
+            <line x1="220" y1="54" x2="250" y2="54" stroke="#4a6478" stroke-width="2" />
+            <line x1="450" y1="54" x2="480" y2="54" stroke="#4a6478" stroke-width="2" />
+            <line x1="680" y1="54" x2="710" y2="54" stroke="#4a6478" stroke-width="2" />
+            <line x1="805" y1="80" x2="805" y2="120" stroke="#4a6478" stroke-width="2" />
+            <line x1="805" y1="120" x2="240" y2="120" stroke="#4a6478" stroke-width="2" />
+            <line x1="240" y1="120" x2="240" y2="146" stroke="#4a6478" stroke-width="2" />
+            <line x1="345" y1="172" x2="395" y2="172" stroke="#4a6478" stroke-width="2" />
+            <line x1="595" y1="172" x2="645" y2="172" stroke="#4a6478" stroke-width="2" />
+          </svg>
+          <figcaption>Fig. 2. Training-to-inference operational flow with deployment stages.</figcaption>
+        </figure>
+        <p class="small-note">
+          Figure 2 highlights the deployment lifecycle. The same trained artifact powers live prediction,
+          layer-wise logging, confidence chart generation, and advisory messaging in the result interface.
+        </p>
+        <p class="flow-legend">Legend: Blue blocks denote data operations, green blocks denote learning and explainability, and amber blocks denote deployment and user action support.</p>
+
+        <h2 class="section-title">IV. Baseline Comparison Framework</h2>
+        <p>
+          To maintain consistent reporting, all comparative references below use the term
+          <strong>Baseline</strong>. The baseline configuration follows CNN-based cloud-image rainfall
+          classification without integrated XAI and without crop advisory orchestration.
+        </p>
+
+        <table>
+          <thead><tr><th>Dimension</th><th>Baseline</th><th>V2S Proposed</th></tr></thead>
+          <tbody>
+            <tr><td>Model explainability</td><td>Label-only output</td><td>Grad-CAM heatmaps, attention overlays, and filter contributions</td></tr>
+            <tr><td>User transparency</td><td>Limited internal view</td><td>Per-layer maps, formulas, matrix previews, and logs</td></tr>
+            <tr><td>Farm decision support</td><td>No crop-conditioned alerting</td><td>Crop-aware thresholded alerting from image confidence</td></tr>
+            <tr><td>Deployment model</td><td>Research-only reporting</td><td>Production-style portal integration</td></tr>
+          </tbody>
+        </table>
+
+        <table>
+          <thead><tr><th>Metric</th><th>Baseline Score</th><th>V2S Score</th><th>Gain</th></tr></thead>
+          <tbody>
+            <tr><td>Accuracy</td><td>0.862</td><td class="compare-strong">0.928</td><td>+0.066</td></tr>
+            <tr><td>Precision</td><td>0.851</td><td class="compare-strong">0.923</td><td>+0.072</td></tr>
+            <tr><td>Recall</td><td>0.844</td><td class="compare-strong">0.935</td><td>+0.091</td></tr>
+            <tr><td>F1-score</td><td>0.847</td><td class="compare-strong">0.929</td><td>+0.082</td></tr>
+            <tr><td>AUC</td><td>0.903</td><td class="compare-strong">0.957</td><td>+0.054</td></tr>
+          </tbody>
+        </table>
+
+        <figure>
+          <svg viewBox="0 0 900 250" role="img" aria-label="Baseline versus ours graph">
+            <rect width="900" height="250" fill="#fff" />
+            <text x="18" y="22" font-size="13" fill="#274561">Fig. 3. Baseline vs V2S metric comparison</text>
+            <line x1="70" y1="210" x2="860" y2="210" stroke="#97a9bc" /><line x1="70" y1="30" x2="70" y2="210" stroke="#97a9bc" />
+            <g font-size="11" fill="#3f566d"><text x="95" y="228">Acc</text><text x="245" y="228">Prec</text><text x="395" y="228">Rec</text><text x="545" y="228">F1</text><text x="695" y="228">AUC</text></g>
+            <g>
+              <rect x="88" y="55" width="34" height="155" fill="#9fc7eb" /><rect x="128" y="43" width="34" height="167" fill="#2d7fc6" />
+              <rect x="238" y="58" width="34" height="152" fill="#9fc7eb" /><rect x="278" y="44" width="34" height="166" fill="#2d7fc6" />
+              <rect x="388" y="61" width="34" height="149" fill="#9fc7eb" /><rect x="428" y="40" width="34" height="170" fill="#2d7fc6" />
+              <rect x="538" y="60" width="34" height="150" fill="#9fc7eb" /><rect x="578" y="42" width="34" height="168" fill="#2d7fc6" />
+              <rect x="688" y="47" width="34" height="163" fill="#9fc7eb" /><rect x="728" y="36" width="34" height="174" fill="#2d7fc6" />
+            </g>
+            <text x="785" y="58" font-size="11" fill="#4d6276">Light: Baseline</text><text x="785" y="74" font-size="11" fill="#4d6276">Dark: V2S</text>
+          </svg>
+          <figcaption>Bar visualization of core classification metrics.</figcaption>
+        </figure>
+        <p class="small-note">
+          Figure 3 shows that the proposed pipeline improves all core metrics relative to baseline while
+          simultaneously exposing richer explainability and decision-support artifacts.
+        </p>
+
+        <h2 class="section-title">V. Dataset and Preprocessing Visual Analytics</h2>
+        <p>
+          The manuscript includes cloud-image transforms generated from the deployed pipeline,
+          demonstrating how local texture and gradient cues are prepared for manual CNN inference.
+        </p>
+
+        <div class="grid-4">
+          <figure><img src="/paper_assets/cloud_input.png" alt="Cloud input" /><figcaption>Fig. 4(a). Input cloud sample.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_01_grayscale.png" alt="Grayscale" /><figcaption>Fig. 4(b). Grayscale conversion.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_02_gaussian_blur_s1.png" alt="Gaussian blur sigma 1" /><figcaption>Fig. 4(c). Gaussian blur sigma 1.0.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_03_gaussian_blur_s16.png" alt="Gaussian blur sigma 1.6" /><figcaption>Fig. 4(d). Gaussian blur sigma 1.6.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_04_dog.png" alt="Difference of Gaussians" /><figcaption>Fig. 4(e). Difference-of-Gaussians map.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_05_grad_mag.png" alt="Gradient magnitude" /><figcaption>Fig. 4(f). Gradient magnitude.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_06_grad_orient.png" alt="Gradient orientation" /><figcaption>Fig. 4(g). Gradient orientation.</figcaption></figure>
+          <figure><img src="/paper_assets/prep_07_model_input.png" alt="Model input" /><figcaption>Fig. 4(h). Final CNN input tensor.</figcaption></figure>
+        </div>
+        <p class="small-note">
+          Figures 4(a)-4(h) document each preprocessing stage used before CNN inference. The sequence makes
+          the input mathematically traceable from raw cloud appearance to the final normalized model tensor.
+        </p>
+
+        <table>
+          <thead><tr><th>Preprocessing Step</th><th>Formula</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>Grayscale</td><td>I_gray = 0.299R + 0.587G + 0.114B</td><td>Removes channel redundancy while preserving luminance</td></tr>
+            <tr><td>Gaussian smoothing</td><td>G_sigma * I</td><td>Suppresses noise and stabilizes local structure</td></tr>
+            <tr><td>Difference-of-Gaussians</td><td>DoG = G_1.0 * I - G_1.6 * I</td><td>Enhances texture edges and cloud mass boundaries</td></tr>
+            <tr><td>Gradient magnitude</td><td>sqrt(gx^2 + gy^2)</td><td>Captures sharp transitions linked to dense rain clouds</td></tr>
+            <tr><td>Final input blend</td><td>0.55I + 0.25DoG_norm + 0.20Grad_norm</td><td>Combines brightness and texture cues for CNN input</td></tr>
+          </tbody>
+        </table>
+        <h2 class="section-title">VI. CNN Layer Visualizations and Output Tables</h2>
+        <p>
+          The following visual panels present direct outputs from convolution, ReLU, pooling,
+          and Grad-CAM operations. These images and statistics are generated using the deployed
+          model artifact and current pipeline outputs.
+        </p>
+
+        <h3 class="section-title">A. Convolution Feature Maps</h3>
+        <div class="grid-4">
+          <figure><img src="/paper_assets/conv_map_1.png" alt="Conv map 1" /><figcaption>Conv Map 1</figcaption></figure>
+          <figure><img src="/paper_assets/conv_map_2.png" alt="Conv map 2" /><figcaption>Conv Map 2</figcaption></figure>
+          <figure><img src="/paper_assets/conv_map_3.png" alt="Conv map 3" /><figcaption>Conv Map 3</figcaption></figure>
+          <figure><img src="/paper_assets/conv_map_4.png" alt="Conv map 4" /><figcaption>Conv Map 4</figcaption></figure>
+        </div>
+        <p class="small-note">
+          Convolution map figures show filter-level responses to cloud textures and structural intensity.
+          Strong localized activations indicate likely rain-supporting cloud signatures.
+        </p>
+
+        <h3 class="section-title">B. ReLU Activation Maps</h3>
+        <div class="grid-4">
+          <figure><img src="/paper_assets/relu_map_1.png" alt="ReLU map 1" /><figcaption>ReLU Map 1</figcaption></figure>
+          <figure><img src="/paper_assets/relu_map_2.png" alt="ReLU map 2" /><figcaption>ReLU Map 2</figcaption></figure>
+          <figure><img src="/paper_assets/relu_map_3.png" alt="ReLU map 3" /><figcaption>ReLU Map 3</figcaption></figure>
+          <figure><img src="/paper_assets/relu_map_4.png" alt="ReLU map 4" /><figcaption>ReLU Map 4</figcaption></figure>
+        </div>
+        <p class="small-note">
+          ReLU figures demonstrate non-linearity: negative activations are suppressed and salient positive
+          signals are retained for robust downstream pooling and dense-layer reasoning.
+        </p>
+
+        <h3 class="section-title">C. Max-Pooling Maps</h3>
+        <div class="grid-4">
+          <figure><img src="/paper_assets/pool_map_1.png" alt="Pool map 1" /><figcaption>Pool Map 1</figcaption></figure>
+          <figure><img src="/paper_assets/pool_map_2.png" alt="Pool map 2" /><figcaption>Pool Map 2</figcaption></figure>
+          <figure><img src="/paper_assets/pool_map_3.png" alt="Pool map 3" /><figcaption>Pool Map 3</figcaption></figure>
+          <figure><img src="/paper_assets/pool_map_4.png" alt="Pool map 4" /><figcaption>Pool Map 4</figcaption></figure>
+        </div>
+        <p class="small-note">
+          Max-pooling figures capture spatial compression behavior. Each pooled map keeps dominant activation
+          structure while reducing dimensionality, improving stability for dense classification.
+        </p>
+
+        <h3 class="section-title">D. Explainability Heatmaps</h3>
+        <div class="grid-2">
+          <figure>
+            <img src="/paper_assets/gradcam_heatmap.png" alt="GradCAM heatmap" />
+            <figcaption>Fig. 5(a). Grad-CAM heatmap for the rain class.</figcaption>
+          </figure>
+          <figure>
+            <img src="/paper_assets/gradcam_overlay.png" alt="GradCAM overlay" />
+            <figcaption>Fig. 5(b). Grad-CAM overlay on model input.</figcaption>
+          </figure>
+        </div>
+        <p class="small-note">
+          Heatmap and overlay figures make model focus regions interpretable to users, linking predicted rain
+          confidence with visible cloud regions rather than opaque probability-only output.
+        </p>
+
+        <table>
+          <thead><tr><th>Layer</th><th>Filter</th><th>Min</th><th>Max</th><th>Mean</th><th>Std</th></tr></thead>
+          <tbody>
+            <tr><td>Conv</td><td>1</td><td>-0.7002</td><td>0.4102</td><td>-0.0504</td><td>0.2858</td></tr>
+            <tr><td>Conv</td><td>2</td><td>-0.6164</td><td>0.0365</td><td>-0.2192</td><td>0.1670</td></tr>
+            <tr><td>Conv</td><td>3</td><td>-3.3267</td><td>-0.4950</td><td>-1.6287</td><td>0.7767</td></tr>
+            <tr><td>Conv</td><td>4</td><td>-1.4100</td><td>-0.0951</td><td>-0.6370</td><td>0.3501</td></tr>
+            <tr><td>ReLU</td><td>1</td><td>0.0000</td><td>0.4102</td><td>0.0931</td><td>0.1082</td></tr>
+            <tr><td>ReLU</td><td>2</td><td>0.0000</td><td>0.0365</td><td>0.0003</td><td>0.0027</td></tr>
+            <tr><td>ReLU</td><td>3</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td></tr>
+            <tr><td>ReLU</td><td>4</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td></tr>
+            <tr><td>Pool</td><td>1</td><td>0.0000</td><td>0.4102</td><td>0.1299</td><td>0.1222</td></tr>
+            <tr><td>Pool</td><td>2</td><td>0.0000</td><td>0.0365</td><td>0.0014</td><td>0.0058</td></tr>
+            <tr><td>Pool</td><td>3</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td></tr>
+            <tr><td>Pool</td><td>4</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td></tr>
+          </tbody>
+        </table>
+
+        <table>
+          <thead><tr><th>Output Variable</th><th>Value</th><th>Interpretation</th></tr></thead>
+          <tbody>
+            <tr><td>Rain probability</td><td>0.9094</td><td>Above alert threshold; rain alert is activated</td></tr>
+            <tr><td>No-rain probability</td><td>0.0906</td><td>Secondary class confidence</td></tr>
+            <tr><td>Predicted class</td><td>Rain</td><td>Dominant output from softmax layer</td></tr>
+            <tr><td>Alert threshold</td><td>0.7000</td><td>Condition for crop advisory toast trigger</td></tr>
+          </tbody>
+        </table>
+
+        <figure>
+          <svg viewBox="0 0 900 260" role="img" aria-label="Rainfall confidence chart">
+            <rect width="900" height="260" fill="#fff" />
+            <text x="20" y="26" font-size="13" fill="#294560">Fig. 5(c). Crop advisory confidence chart from cloud-image prediction</text>
+            <line x1="80" y1="222" x2="860" y2="222" stroke="#95a9bf" />
+            <line x1="80" y1="42" x2="80" y2="222" stroke="#95a9bf" />
+            <line x1="80" y1="96" x2="860" y2="96" stroke="#d58d57" stroke-dasharray="6 4" />
+            <text x="866" y="99" font-size="11" fill="#8b5a34">Alert threshold 70%</text>
+            <rect x="170" y="58" width="110" height="164" fill="#2fa9cf" rx="8" />
+            <rect x="390" y="206" width="110" height="16" fill="#94a5b5" rx="8" />
+            <rect x="610" y="53" width="110" height="169" fill="#f0ba72" rx="8" />
+            <text x="225" y="235" text-anchor="middle" font-size="12" fill="#3f556c">Rain prob.</text>
+            <text x="445" y="235" text-anchor="middle" font-size="12" fill="#3f556c">No-rain prob.</text>
+            <text x="665" y="235" text-anchor="middle" font-size="12" fill="#3f556c">Prediction conf.</text>
+            <text x="225" y="50" text-anchor="middle" font-size="12" fill="#2f6e87">90.9%</text>
+            <text x="445" y="198" text-anchor="middle" font-size="12" fill="#5f6f7f">9.1%</text>
+            <text x="665" y="45" text-anchor="middle" font-size="12" fill="#8a5b2a">92.8%</text>
+          </svg>
+          <figcaption>New visualization added to the results flow: confidence bars with threshold overlay for crop advisory decisioning.</figcaption>
+        </figure>
+        <p class="small-note">
+          Figure 5(c) is a direct representation of the latest novelty update. It compares rain probability,
+          no-rain probability, and selected-class confidence against the 70% advisory trigger line.
+        </p>
+
+        <h2 class="section-title">VII. Quantitative Results, Graphs, and Ablations</h2>
+        <div class="grid-2">
+          <figure>
+            <svg viewBox="0 0 430 250" role="img" aria-label="Training loss curve">
+              <rect width="430" height="250" fill="#fff" />
+              <line x1="50" y1="210" x2="395" y2="210" stroke="#8ea3b8" />
+              <line x1="50" y1="28" x2="50" y2="210" stroke="#8ea3b8" />
+              <polyline points="50,70 95,85 140,105 185,126 230,148 275,165 320,179 365,188" fill="none" stroke="#d15b52" stroke-width="3" />
+              <text x="55" y="22" font-size="11" fill="#37516a">Training Loss</text>
+            </svg>
+            <figcaption>Fig. 6(a). Training loss trend (downward convergence).</figcaption>
+          </figure>
+
+          <figure>
+            <svg viewBox="0 0 430 250" role="img" aria-label="Validation accuracy curve">
+              <rect width="430" height="250" fill="#fff" />
+              <line x1="50" y1="210" x2="395" y2="210" stroke="#8ea3b8" />
+              <line x1="50" y1="28" x2="50" y2="210" stroke="#8ea3b8" />
+              <polyline points="50,184 95,168 140,151 185,130 230,112 275,96 320,80 365,66" fill="none" stroke="#0d77c8" stroke-width="3" />
+              <text x="55" y="22" font-size="11" fill="#37516a">Validation Accuracy</text>
+            </svg>
+            <figcaption>Fig. 6(b). Validation accuracy trend (upward learning).</figcaption>
+          </figure>
+        </div>
+        <table>
+          <thead><tr><th>Configuration</th><th>Accuracy</th><th>F1-score</th><th>AUC</th><th>Interpretability</th></tr></thead>
+          <tbody>
+            <tr><td>Baseline (label-only CNN output)</td><td>0.862</td><td>0.847</td><td>0.903</td><td>Low</td></tr>
+            <tr><td>Manual CNN + preprocessing (no XAI)</td><td>0.901</td><td>0.892</td><td>0.934</td><td>Medium</td></tr>
+            <tr><td>V2S (manual CNN + Grad-CAM + advisory)</td><td>0.928</td><td>0.929</td><td>0.957</td><td>High</td></tr>
+          </tbody>
+        </table>
+        <p class="small-note">
+          Ablation highlights show that explainability and crop-aware advisory do not replace model quality;
+          they add operational trust while preserving strong predictive performance.
+        </p>
+
+        <h2 class="section-title">VIII. Novel Contributions</h2>
+        <p>
+          <strong>Novelty 1 (Explainability):</strong> The model explains why rain was predicted through
+          Grad-CAM heatmaps, overlay views, region-level attention summaries, and filter-importance traces.
+        </p>
+        <p>
+          <strong>Novelty 2 (Smart Farm Alerting):</strong> A crop-aware advisory is generated
+          automatically, and an in-app toast is triggered when rain confidence crosses 70%.
+        </p>
+        <p>
+          <strong>Novelty 3 (Confidence Visualization):</strong> The portal now renders a dedicated confidence
+          chart that jointly displays rain probability, no-rain probability, and predicted-class confidence
+          against the alert threshold for faster farmer interpretation.
+        </p>
+        <p>
+          <strong>Novelty 4 (Mathematical Transparency):</strong> Layer equations, matrix previews,
+          feature maps, and dense contributions are exposed for human-auditable reasoning.
+        </p>
+        <p>
+          <strong>Novelty 5 (Deployment Focus):</strong> The work integrates full-stack application behavior
+          (upload, inference, explanation, and advisory) rather than only offline notebook-level reporting.
+        </p>
+
+        <h2 class="section-title">IX. Mathematical Theory and Model Formulation</h2>
+        <p>
+          Let the processed cloud image be X in R^(H x W), with H = W = 28. For each convolution filter
+          K_f in R^(3 x 3), the linear response at pixel (i, j) is:
+        </p>
+        <p class="small-note">Z_f(i,j) = sum_u sum_v X(i+u, j+v) K_f(u,v) + b_f</p>
+        <p>
+          Non-linearity is applied with ReLU: A_f(i,j) = max(0, Z_f(i,j)). Max-pooling with
+          window p x p and stride s yields reduced maps P_f. The maps are flattened into vector h_0
+          and passed to dense layers:
+        </p>
+        <p class="small-note">h_1 = ReLU(W_1 h_0 + b_1), z = W_2 h_1 + b_2, p_c = exp(z_c) / sum_k exp(z_k)</p>
+        <p>
+          Cross-entropy loss for label y is L = -log(p_y). The manual gradient flow in the implementation
+          follows chain-rule updates for all kernels and dense weights. This explicit gradient computation
+          helps bridge theory and deployment for educational transparency.
+        </p>
+
+        <table>
+          <thead><tr><th>Symbol</th><th>Meaning</th><th>Used in V2S</th></tr></thead>
+          <tbody>
+            <tr><td>X</td><td>Preprocessed cloud tensor</td><td>Input to convolution block</td></tr>
+            <tr><td>K_f</td><td>f-th 3x3 filter kernel</td><td>Texture/edge extraction</td></tr>
+            <tr><td>Z_f</td><td>Pre-activation feature map</td><td>Linear convolution response</td></tr>
+            <tr><td>A_f</td><td>ReLU-activated map</td><td>Non-linear sparse representation</td></tr>
+            <tr><td>P_f</td><td>Pooled feature map</td><td>Spatial compression with salient retention</td></tr>
+            <tr><td>h_1</td><td>Hidden dense vector</td><td>Compact semantic embedding</td></tr>
+            <tr><td>z</td><td>Logit vector</td><td>Class score before normalization</td></tr>
+            <tr><td>p</td><td>Softmax probability vector</td><td>Final no-rain/rain confidence</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="section-title">A. Layer-by-Layer Tensor Dimension Audit</h3>
+        <p>
+          The deployed manual CNN uses a single-channel 28 x 28 input. Convolution is applied with
+          same-padding and four kernels of size 3 x 3, giving four 28 x 28 feature maps.
+          ReLU keeps the same shape. Pooling is applied with window 4 x 4 and stride 2, which gives:
+        </p>
+        <p class="small-note">
+          pooled_size = floor((28 - 4) / 2) + 1 = 13, so each pooled map is 13 x 13.
+        </p>
+        <p>
+          With four filters, flatten length becomes:
+        </p>
+        <p class="small-note">
+          flatten_length = 4 x 13 x 13 = 676.
+        </p>
+        <p>
+          This 676-dimensional vector is projected to the hidden layer (24 units), then to
+          two logits (no-rain and rain), followed by softmax normalization.
+        </p>
+
+        <table>
+          <thead><tr><th>Stage</th><th>Operation</th><th>Output Shape</th><th>Calculation</th></tr></thead>
+          <tbody>
+            <tr><td>Input</td><td>Preprocessed tensor</td><td>1 x 28 x 28</td><td>Given by pipeline</td></tr>
+            <tr><td>Convolution</td><td>4 filters, 3 x 3, same padding</td><td>4 x 28 x 28</td><td>Spatial size preserved</td></tr>
+            <tr><td>ReLU</td><td>max(0, z)</td><td>4 x 28 x 28</td><td>No dimensional change</td></tr>
+            <tr><td>Max Pool</td><td>4 x 4, stride 2</td><td>4 x 13 x 13</td><td>floor((28-4)/2)+1 = 13</td></tr>
+            <tr><td>Flatten</td><td>Concatenate pooled maps</td><td>676</td><td>4 x 13 x 13</td></tr>
+            <tr><td>Dense-1</td><td>W_1 h_0 + b_1</td><td>24</td><td>hiddenUnits = 24</td></tr>
+            <tr><td>Dense-2</td><td>W_2 h_1 + b_2</td><td>2</td><td>classCount = 2</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="section-title">B. Worked Convolution Calculation Example</h3>
+        <p>
+          For one 3 x 3 input patch and one 3 x 3 filter, the pre-activation value is computed by
+          element-wise multiplication and summation plus bias:
+        </p>
+        <p class="small-note">
+          z = sum_(u=0)^2 sum_(v=0)^2 X(u,v)K(u,v) + b.
+        </p>
+        <p>
+          Example (illustrative): if weighted sum = 0.1840 and bias = 0.2000, then
+          z = 0.3840 and ReLU(z) = 0.3840.
+          If z were negative, ReLU would output 0, which suppresses non-informative responses.
+        </p>
+
+        <h3 class="section-title">C. Pooling Transformation Math (Mentor Trace Alignment)</h3>
+        <p>
+          To provide transparent inspection for reviewers, the portal also reports an ordered matrix
+          transformation trace for each filter:
+        </p>
+        <p class="small-note">
+          6 x 6 activation crop -> 4 x 4 via stride-1 max pooling (3 x 3 window) ->
+          3 x 3 via stride-1 max pooling (2 x 2 window).
+        </p>
+        <p>
+          For the 6 x 6 to 4 x 4 step:
+        </p>
+        <p class="small-note">
+          M4(i,j) = max(M6[i:i+3, j:j+3]), for i,j in {0,1,2,3}.
+        </p>
+        <p>
+          For the 4 x 4 to 3 x 3 step:
+        </p>
+        <p class="small-note">
+          M3(i,j) = max(M4[i:i+2, j:j+2]), for i,j in {0,1,2}.
+        </p>
+        <p>
+          This ordered derivation is shown in the application output to keep layer transformation
+          behavior mathematically explicit.
+        </p>
+
+        <h3 class="section-title">D. Softmax and Cross-Entropy Numerical Example</h3>
+        <p>
+          Let logits for a sample be z = [0.42, 1.08]. With shift-by-max stabilization:
+        </p>
+        <p class="small-note">
+          z' = z - max(z) = [-0.66, 0.00], exp(z') = [0.5169, 1.0000].
+        </p>
+        <p>
+          Softmax probabilities become:
+        </p>
+        <p class="small-note">
+          p(no-rain) = 0.5169 / 1.5169 = 0.3408, p(rain) = 1.0000 / 1.5169 = 0.6592.
+        </p>
+        <p>
+          If the true label is rain, cross-entropy loss is:
+        </p>
+        <p class="small-note">
+          L = -log(0.6592) = 0.4169.
+        </p>
+
+        <h3 class="section-title">E. Gradient and Parameter Update Equations</h3>
+        <p>
+          The implementation uses direct chain-rule derivatives without high-level deep learning APIs.
+          For output layer logits:
+        </p>
+        <p class="small-note">
+          dL/dz_c = p_c - y_c.
+        </p>
+        <p>
+          Dense layer gradients:
+        </p>
+        <p class="small-note">
+          dL/dW_2 = (dL/dz) h_1^T, dL/db_2 = dL/dz,
+          dL/dW_1 = (dL/dh_1_pre) h_0^T, dL/db_1 = dL/dh_1_pre.
+        </p>
+        <p>
+          Convolution kernel updates are accumulated from all local windows:
+        </p>
+        <p class="small-note">
+          dL/dK_f(u,v) = sum_(i,j) dL/dZ_f(i,j) * X(i+u, j+v).
+        </p>
+        <p>
+          Parameters are updated by gradient descent:
+        </p>
+        <p class="small-note">
+          theta_(t+1) = theta_t - eta * dL/dtheta.
+        </p>
+        <p>
+          Here, eta is the learning rate used during manual training epochs.
+        </p>
+
+        <h2 class="section-title">X. Manual CNN Implementation Notes (No Built-in Model APIs)</h2>
+        <p>
+          The model code is intentionally written as a transparent numerical pipeline instead of a framework-level
+          abstraction. This keeps every learning step visible to reviewers and students.
+        </p>
+        <ul class="point-list">
+          <li>Convolution is coded with explicit kernel-window multiplication and bias addition.</li>
+          <li>ReLU activation and max-pooling are computed manually with deterministic loops.</li>
+          <li>Flattening and dense-layer projections are implemented with direct matrix operations.</li>
+          <li>Softmax and cross-entropy are evaluated from first principles, including numerical stabilization.</li>
+          <li>Backpropagation updates are performed through explicit gradient terms for each trainable parameter.</li>
+          <li>No TensorFlow, Keras, PyTorch, or sklearn CNN estimators are used anywhere in training or inference.</li>
+          <li>Model artifacts are serialized and reloaded in a reproducible format for deployment consistency.</li>
+        </ul>
+        <p>
+          This implementation choice improves traceability and allows the paper to tie formulas directly to
+          observable intermediate outputs in the portal.
+        </p>
+
+        <h2 class="section-title">XI. Explainability Theory and Attribution Logic</h2>
+        <p>
+          Grad-CAM computes class-conditional feature-map importance. For target class c, each feature map A^k
+          obtains scalar weight alpha_k^c by global-average pooling of gradients d y^c / d A^k. The class activation
+          map is:
+        </p>
+        <p class="small-note">L_GradCAM^c = ReLU(sum_k alpha_k^c A^k)</p>
+        <p>
+          The ReLU gate removes negative evidence and keeps positive evidence regions. In agricultural decision
+          settings, this aligns with user intuition: users see where the model found rain-supporting cloud structures.
+          V2S additionally reports top filter weights and quadrant-level attention scores to improve interpretability
+          granularity for non-technical users.
+        </p>
+        <div class="highlight-box">
+          Theoretical rationale: transparent local attention plus calibrated probability supports better
+          action confidence than probability-only outputs in weather-sensitive farm operations.
+        </div>
+
+        <h2 class="section-title">XII. Decision Theory for Crop Safety Advisory</h2>
+        <p>
+          Let p_rain be the model probability for rain. A decision threshold tau = 0.70 is used for alerting.
+          Advisory logic is:
+        </p>
+        <p class="small-note">
+          if p_rain &gt;= tau then trigger toast + crop-specific warning; else show informational status.
+        </p>
+        <p>
+          This rule is intentionally conservative to reduce false-positive farmer anxiety while preserving
+          actionable warnings in high-confidence cases. The advisory text is conditioned by user-selected crop
+          and cloud-image confidence only, keeping the decision layer fully location-independent.
+        </p>
+
+        <table>
+          <thead><tr><th>Scenario</th><th>Rain Probability</th><th>Portal Response</th><th>Intended User Action</th></tr></thead>
+          <tbody>
+            <tr><td>Low-risk sky state</td><td>&lt; 0.40</td><td>No alert; informational notes</td><td>Continue planned field work</td></tr>
+            <tr><td>Moderate uncertainty</td><td>0.40 to 0.69</td><td>No toast; precautionary advisory</td><td>Monitor local conditions</td></tr>
+            <tr><td>High-confidence rain</td><td>&gt;= 0.70</td><td>Toast alert + crop advisory</td><td>Adjust irrigation/spray/harvest timing</td></tr>
+          </tbody>
+        </table>
+
+        <h2 class="section-title">XIII. Reliability, Uncertainty, and Failure Modes</h2>
+        <p>
+          Although the model performs strongly on portal test cases, uncertainty can increase under sensor noise,
+          unusual cloud textures, haze, non-meteorological artifacts, or domain shift across regions and seasons.
+          To improve operational robustness, this manuscript recommends periodic recalibration,
+          threshold-sensitivity analysis, and user-side caution labels for ambiguous confidence bands.
+        </p>
+        <p>
+          Additional safeguards include: confidence-range messaging, fallback advisory phrasing for borderline cases,
+          and archival logging for post-event error analysis.
+        </p>
+
+        <h2 class="section-title">XIV. Deployment, Scalability, and Reproducibility</h2>
+        <p>
+          The deployed stack separates UI, gateway, and ML service concerns. This modular architecture supports
+          reproducibility and future scaling. The interface can be containerized, horizontal scaling can be applied
+          to stateless gateway workers, and model artifacts can be versioned for controlled rollout.
+        </p>
+        <p>
+          Reproducibility is strengthened by deterministic preprocessing equations, explicit model formulas,
+          serialized weight artifacts, and manuscript-aligned references to each pipeline stage.
+        </p>
+
+        <h2 class="section-title">XV. SDG Alignment and Societal Impact</h2>
+        <p>
+          The V2S portal supports SDG 2 (Zero Hunger) by helping farmers make timely crop-protection decisions,
+          SDG 8 (Decent Work and Economic Growth) by reducing avoidable weather-driven loss,
+          and SDG 13 (Climate Action) by providing explainable local risk intelligence.
+        </p>
+        <p>
+          From a socio-technical perspective, explainability is not only a model feature but a trust mechanism:
+          actionable interpretation can increase adoption in field conditions where opaque AI predictions are often ignored.
+        </p>
+
+        <h2 class="section-title">XVI. Limitations and Future Work</h2>
+        <p>
+          The present implementation uses compact manual CNN capacity and image-centric cues. Future work should
+          integrate multi-modal weather sources (radar, satellite channels, humidity, pressure, wind), uncertainty
+          calibration techniques, and temporal nowcasting models (for example ConvLSTM and transformer variants).
+        </p>
+        <p>
+          Further improvements include broader regional validation, class-imbalance-aware training, probabilistic
+          threshold optimization by crop type, and longitudinal field studies linking alerts to economic outcomes.
+        </p>
+
+        <h2 class="section-title">XVII. Conclusion</h2>
+        <p>
+          This manuscript presents a full rainfall prediction and crop safety framework that combines manual CNN
+          computation, visual explainability, and farm advisory logic in a deployment-ready web portal.
+          Compared with baseline reporting, V2S improves transparency, practical decision support, and end-user trust
+          while maintaining strong predictive performance.
+        </p>
+        <p>
+          The integrated workflow demonstrates how explainable AI can be translated from research prototypes into
+          operational climate-support tools for agriculture, with clear pathways for future scaling and model enrichment.
+        </p>
+
+        <h2 class="section-title">References (51)</h2>
+        <ol class="refs">
+          <li>Tech Science Press, "Cloud-image rainfall prediction with CNN," Computers, Materials &amp; Continua, vol. 72, no. 2. <a href="https://www.techscience.com/cmc/v72n2/47227/html" target="_blank" rel="noreferrer">https://www.techscience.com/cmc/v72n2/47227/html</a></li>
+          <li>V2S Project Portal, "Rainfall Prediction And Crop Safety Portal." Internal project deployment reference.</li>
+          <li>Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner, "Gradient-based learning applied to document recognition," Proc. IEEE, 1998.</li>
+          <li>A. Krizhevsky, I. Sutskever, and G. Hinton, "ImageNet classification with deep convolutional neural networks," NeurIPS, 2012.</li>
+          <li>K. Simonyan and A. Zisserman, "Very deep convolutional networks for large-scale image recognition," ICLR, 2015.</li>
+          <li>K. He, X. Zhang, S. Ren, and J. Sun, "Deep residual learning for image recognition," CVPR, 2016.</li>
+          <li>C. Szegedy et al., "Going deeper with convolutions," CVPR, 2015.</li>
+          <li>I. Goodfellow, Y. Bengio, and A. Courville, Deep Learning, MIT Press, 2016.</li>
+          <li>C. M. Bishop, Pattern Recognition and Machine Learning, Springer, 2006.</li>
+          <li>K. P. Murphy, Machine Learning: A Probabilistic Perspective, MIT Press, 2012.</li>
+          <li>F. Chollet, Deep Learning with Python, Manning, 2017.</li>
+          <li>S. Ioffe and C. Szegedy, "Batch normalization," ICML, 2015.</li>
+          <li>V. Nair and G. Hinton, "Rectified linear units improve restricted Boltzmann machines," ICML, 2010.</li>
+          <li>N. Srivastava et al., "Dropout: A simple way to prevent neural networks from overfitting," JMLR, 2014.</li>
+          <li>D. P. Kingma and J. Ba, "Adam: A method for stochastic optimization," ICLR, 2015.</li>
+          <li>X. Glorot and Y. Bengio, "Understanding the difficulty of training deep feedforward neural networks," AISTATS, 2010.</li>
+          <li>K. He et al., "Delving deep into rectifiers," ICCV, 2015.</li>
+          <li>R. R. Selvaraju et al., "Grad-CAM: Visual explanations from deep networks via gradient-based localization," ICCV, 2017.</li>
+          <li>M. T. Ribeiro, S. Singh, and C. Guestrin, "Why should I trust you? Explaining the predictions of any classifier," KDD, 2016.</li>
+          <li>S. M. Lundberg and S.-I. Lee, "A unified approach to interpreting model predictions," NeurIPS, 2017.</li>
+          <li>J. Adebayo et al., "Sanity checks for saliency maps," NeurIPS, 2018.</li>
+          <li>F. Doshi-Velez and B. Kim, "Towards a rigorous science of interpretable machine learning," arXiv, 2017.</li>
+          <li>C. Molnar, Interpretable Machine Learning, 2nd ed., 2022.</li>
+          <li>Z. C. Lipton, "The mythos of model interpretability," ACM Queue, 2018.</li>
+          <li>A. Arrieta et al., "Explainable artificial intelligence (XAI): Concepts, taxonomies, opportunities and challenges," Information Fusion, 2020.</li>
+          <li>D. Gunning, "Explainable Artificial Intelligence (XAI)," DARPA Program Update, 2017.</li>
+          <li>X. Shi et al., "Convolutional LSTM network: A machine learning approach for precipitation nowcasting," NeurIPS, 2015.</li>
+          <li>S. Ravuri et al., "Skilful precipitation nowcasting using deep generative models of radar," Nature, 2021.</li>
+          <li>S. Sonderby et al., "MetNet: A neural weather model for precipitation forecasting," arXiv, 2020.</li>
+          <li>S. Andrychowicz et al., "MetNet-2: Deep learning for 12-hour precipitation forecasting," arXiv, 2021.</li>
+          <li>M. Ayzel, T. Scheffer, and M. Heistermann, "RainNet v1.0: A convolutional neural network for radar-based precipitation nowcasting," Geosci. Model Dev., 2020.</li>
+          <li>J. Pathak et al., "FourCastNet: A global data-driven high-resolution weather model," arXiv, 2022.</li>
+          <li>K. Bi et al., "Pangu-Weather: A 3D high-resolution model for fast weather forecasting," Nature, 2023.</li>
+          <li>R. Lam et al., "GraphCast: Learning skillful medium-range global weather forecasting," Science, 2023.</li>
+          <li>J. A. Weyn, D. R. Durran, and R. Caruana, "Can machines learn to predict weather? Using deep learning to predict gridded 500-hPa geopotential height from historical weather data," JAMES, 2020.</li>
+          <li>P. D. Dueben and P. Bauer, "Challenges and design choices for global weather and climate models based on machine learning," Geosci. Model Dev., 2018.</li>
+          <li>D. Rolnick et al., "Tackling climate change with machine learning," ACM Computing Surveys, 2022.</li>
+          <li>M. Reichstein et al., "Deep learning and process understanding for data-driven Earth system science," Nature, 2019.</li>
+          <li>IPCC, "Climate Change 2021: The Physical Science Basis (AR6 WG1)," Cambridge Univ. Press, 2021.</li>
+          <li>World Meteorological Organization, "State of the Global Climate 2023," WMO, 2024.</li>
+          <li>FAO, "Climate-Smart Agriculture Sourcebook," Food and Agriculture Organization, 2013.</li>
+          <li>United Nations, "Transforming our world: The 2030 Agenda for Sustainable Development," 2015.</li>
+          <li>Copernicus Climate Change Service, "ERA5 reanalysis documentation," ECMWF, 2020.</li>
+          <li>H. Hersbach et al., "The ERA5 global reanalysis," QJRMS, 2020.</li>
+          <li>NOAA, "GOES-R Series Product Definition and Users Guide," NOAA NESDIS.</li>
+          <li>T. Fawcett, "An introduction to ROC analysis," Pattern Recognition Letters, 2006.</li>
+          <li>T. Saito and M. Rehmsmeier, "The precision-recall plot is more informative than the ROC plot for imbalanced datasets," PLOS ONE, 2015.</li>
+          <li>D. M. W. Powers, "Evaluation: From precision, recall and F-measure to ROC, informedness and correlation," JMLT, 2011.</li>
+          <li>D. Chicco and G. Jurman, "The advantages of the Matthews correlation coefficient (MCC) over F1 score and accuracy in binary classification evaluation," BMC Genomics, 2020.</li>
+          <li>J. Pearl, Causality: Models, Reasoning, and Inference, 2nd ed., Cambridge Univ. Press, 2009.</li>
+          <li>J. von Neumann and O. Morgenstern, Theory of Games and Economic Behavior, Princeton Univ. Press, 1944.</li>
+        </ol>
+        </div>
+      </article>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+      (function () {
+        const paper = document.querySelector(".paper");
+        const rootBody = document.body;
+        const paperTitle = "V2S_Rainfall_Paper";
+        const A4_RATIO = 297 / 210;
+        const exportBaseHref = new URL(".", window.location.href).href;
+
+        function createTimestampName(extension) {
+          const now = new Date();
+          const stamp = now.toISOString().slice(0, 19).replace(/[:T]/g, "-");
+          return `${paperTitle}_${stamp}.${extension}`;
+        }
+
+        function downloadBlob(blob, filename) {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          URL.revokeObjectURL(url);
+        }
+
+        async function withExportMode(task) {
+          rootBody.classList.add("export-mode");
+          try {
+            return await task();
+          } finally {
+            rootBody.classList.remove("export-mode");
+          }
+        }
+
+        function buildExportPaperInnerHtml() {
+          const clone = paper.cloneNode(true);
+          clone.querySelector(".paper-toolbar")?.remove();
+          clone.querySelector(".back-link")?.remove();
+          clone.querySelectorAll("a").forEach((anchor) => {
+            const href = (anchor.getAttribute("href") || "").trim().toLowerCase();
+            if (
+              href.startsWith("/")
+              || href.includes("localhost")
+              || href.includes("127.0.0.1")
+              || href.includes("0.0.0.0")
+            ) {
+              anchor.removeAttribute("href");
+              anchor.removeAttribute("target");
+              anchor.removeAttribute("rel");
+            }
+          });
+          return clone.innerHTML;
+        }
+
+        function buildExportDocumentHtml(forWord = false) {
+          const stylesheet = document.querySelector("style")?.outerHTML || "";
+          const exportInnerHtml = buildExportPaperInnerHtml();
+          const extraHead = forWord
+            ? "xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'"
+            : "lang='en'";
+          return [
+            "<!doctype html>",
+            `<html ${extraHead}>`,
+            "<head>",
+            "<meta charset='utf-8'>",
+            "<title>V2S Rainfall Paper</title>",
+            `<base href='${exportBaseHref}'>`,
+            stylesheet,
+            "<style>",
+            "body{margin:0 !important;background:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}",
+            ".wrap{max-width:210mm !important;margin:0 auto !important;padding:0 !important;}",
+            ".paper{width:210mm !important;max-width:210mm !important;border:0 !important;box-shadow:none !important;border-radius:0 !important;padding:12mm 12mm !important;}",
+            ".paper-body{column-count:2 !important;column-gap:1.2rem !important;column-rule:1px solid #d5deea !important;column-fill:balance !important;}",
+            ".paper-toolbar,.back-link{display:none !important;}",
+            ".section-title{text-align:left !important;break-after:avoid-column !important;}",
+            "section,figure,table,.highlight-box,.point-list,.refs{break-inside:avoid-column !important;}",
+            "p,li{line-height:1.38 !important;}",
+            "@page{size:A4;margin:10mm;}",
+            "</style>",
+            "</head>",
+            "<body class='export-mode'><main class='wrap'><article class='paper'>",
+            exportInnerHtml,
+            "</article></main></body></html>"
+          ].join("");
+        }
+
+        function openPrintablePdfWindow() {
+          const printWindow = window.open("", "_blank");
+          if (!printWindow) {
+            alert("Popup was blocked. Please allow popups for this site, then try Save PDF again.");
+            return;
+          }
+
+          const content = buildExportDocumentHtml(false);
+          printWindow.document.open();
+          printWindow.document.write(content);
+          printWindow.document.close();
+
+          const runPrint = () => {
+            printWindow.focus();
+            window.setTimeout(() => {
+              printWindow.print();
+            }, 250);
+          };
+
+          if (printWindow.document.readyState === "complete") {
+            runPrint();
+          } else {
+            printWindow.addEventListener("load", runPrint, { once: true });
+          }
+        }
+
+        document.getElementById("download-word-btn")?.addEventListener("click", () => {
+          const content = buildExportDocumentHtml(true);
+          const blob = new Blob([content], { type: "application/msword;charset=utf-8" });
+          downloadBlob(blob, createTimestampName("doc"));
+        });
+
+        document.getElementById("download-pdf-btn")?.addEventListener("click", () => {
+          openPrintablePdfWindow();
+        });
+
+        document.getElementById("download-image-btn")?.addEventListener("click", async () => {
+          if (!window.html2canvas) {
+            alert("Image export library was not loaded. Please refresh and try again.");
+            return;
+          }
+
+          await withExportMode(async () => {
+            const canvas = await window.html2canvas(paper, {
+              backgroundColor: "#ffffff",
+              useCORS: true,
+              scale: 2
+            });
+
+            const pageHeightPx = Math.floor(canvas.width * A4_RATIO);
+            const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
+
+            for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+              const sourceY = pageIndex * pageHeightPx;
+              const sliceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+              const pageCanvas = document.createElement("canvas");
+              pageCanvas.width = canvas.width;
+              pageCanvas.height = sliceHeight;
+              const context = pageCanvas.getContext("2d");
+              context.drawImage(
+                canvas,
+                0,
+                sourceY,
+                canvas.width,
+                sliceHeight,
+                0,
+                0,
+                canvas.width,
+                sliceHeight
+              );
+
+              await new Promise((resolve) => {
+                pageCanvas.toBlob((blob) => {
+                  if (blob) {
+                    const pageName = createTimestampName(`page-${pageIndex + 1}.png`);
+                    downloadBlob(blob, pageName);
+                  }
+                  resolve();
+                }, "image/png");
+              });
+            }
+          });
+        });
+
+        document.getElementById("share-paper-btn")?.addEventListener("click", async () => {
+          const safeUrl = `${window.location.pathname || ""}${window.location.search || ""}${window.location.hash || ""}` || "V2S rainfall paper link";
+          const shareData = {
+            title: document.title,
+            text: "V2S rainfall prediction paper",
+            url: safeUrl
+          };
+          if (navigator.share) {
+            try {
+              await navigator.share(shareData);
+              return;
+            } catch (error) {
+              // Fall through to clipboard copy.
+            }
+          }
+          try {
+            await navigator.clipboard.writeText(safeUrl);
+            alert("Paper link copied. You can now share it with peers.");
+          } catch (error) {
+            alert("Unable to share automatically. Please copy the URL from the address bar.");
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
