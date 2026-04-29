@@ -1,0 +1,5 @@
+{
+  "appId": "com.vaibav.rainfall",
+  "appName": "RainfallApp",
+  "webDir": "../dist"
+}
