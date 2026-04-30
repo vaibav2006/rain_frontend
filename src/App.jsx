@@ -1,10 +1,60 @@
 import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+
 const BASE_URL = "https://ml-backend-4.onrender.com";
+const api = (path) => {
+  const normalizedPath = String(path || "").replace(/^\/api(?=\/)/, "");
+  return `${BASE_URL}${normalizedPath}`;
+};
+const RESULT_PAGE_COUNT = 5;
+const UPLOAD_STORAGE_KEY = "v2s_upload_details";
+const AUTH_USERS_STORAGE_KEY = "v2s_auth_users";
+const AUTH_SESSION_STORAGE_KEY = "v2s_auth_session";
+const ADMIN_EMAIL = "admin@gmail.com";
+const ADMIN_PASSWORD = "admin123";
+
 const defaultFarmForm = {
   cropType: "Rice"
 };
 
 const cropOptions = ["Rice", "Wheat", "Cotton", "Maize", "Sugarcane"];
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function seedAdminUser(users) {
+  const list = Array.isArray(users) ? [...users] : [];
+  const hasAdmin = list.some((user) => normalizeEmail(user.email) === ADMIN_EMAIL);
+  if (hasAdmin) {
+    return list;
+  }
+  list.push({
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    role: "admin",
+    createdAt: new Date().toISOString()
+  });
+  return list;
+}
+
+function readUsersFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(AUTH_USERS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    const seeded = seedAdminUser(parsed);
+    window.localStorage.setItem(AUTH_USERS_STORAGE_KEY, JSON.stringify(seeded));
+    return seeded;
+  } catch (error) {
+    const seeded = seedAdminUser([]);
+    window.localStorage.setItem(AUTH_USERS_STORAGE_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+}
+
+function saveUsersToStorage(users) {
+  window.localStorage.setItem(AUTH_USERS_STORAGE_KEY, JSON.stringify(users));
+}
 
 function imageSource(base64) {
   return `data:image/png;base64,${base64}`;
@@ -12,6 +62,10 @@ function imageSource(base64) {
 
 function formatPercent(value) {
   return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatMillimeterPerHour(value) {
+  return `${Number(value || 0).toFixed(2)} mm/hr`;
 }
 
 function matrixToText(matrix) {
@@ -22,6 +76,44 @@ function matrixToText(matrix) {
 
 function flattenVectorToText(vector) {
   return (vector || []).map((value) => value.toFixed(3)).join("  ");
+}
+
+async function readJsonSafe(response) {
+  const raw = await response.text();
+  if (!raw) {
+    throw new Error(`Empty response body (HTTP ${response.status})`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(raw);
+  }
+}
+
+function parseResultPage(pathname) {
+  const match = (pathname || "").match(/^\/results(?:\/(\d+))?$/);
+  if (!match) {
+    return null;
+  }
+  if (!match[1]) {
+    return 1;
+  }
+  const page = Number(match[1]);
+  if (!Number.isInteger(page)) {
+    return null;
+  }
+  return Math.max(1, Math.min(RESULT_PAGE_COUNT, page));
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < (1024 * 1024)) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function buildInitialBackendReadiness(payload) {
@@ -133,6 +225,14 @@ function logPredictionMathematicsToConsole(payload) {
 }
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [authReady, setAuthReady] = useState(false);
+  const [authUsers, setAuthUsers] = useState([]);
+  const [session, setSession] = useState(null);
+  const [authForm, setAuthForm] = useState({ email: "", password: "" });
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [modelInfo, setModelInfo] = useState(null);
   const [modelReady, setModelReady] = useState(false);
   const [healthLogs, setHealthLogs] = useState([]);
@@ -152,55 +252,120 @@ function App() {
   );
   const [toast, setToast] = useState(null);
   const [matrixZoom, setMatrixZoom] = useState(1);
+  const [storedUploadDetails, setStoredUploadDetails] = useState(null);
   const resultSectionRef = useRef(null);
+  const normalizedPath = location.pathname || "/";
+  const isLoginRoute = normalizedPath === "/login";
+  const isSignupRoute = normalizedPath === "/signup";
+  const isAuthRoute = isLoginRoute || isSignupRoute;
+  const isAdminRoute = normalizedPath === "/admin";
+  const currentResultPage = parseResultPage(location.pathname);
+  const isResultRoute = currentResultPage !== null;
+
+  useEffect(() => {
+    const users = readUsersFromStorage();
+    setAuthUsers(users);
+
+    try {
+      const rawSession = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+      const parsedSession = rawSession ? JSON.parse(rawSession) : null;
+      if (parsedSession?.email) {
+        setSession(parsedSession);
+      }
+    } catch (error) {
+      window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    }
+
+    setAuthReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    if (!session && !isAuthRoute) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    if (session && isAuthRoute) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    if (session && isAdminRoute && session.role !== "admin") {
+      navigate("/", { replace: true });
+    }
+  }, [authReady, session, isAuthRoute, isAdminRoute, navigate]);
 
   useEffect(() => {
     let ignore = false;
 
     async function loadModelInfo() {
-  try {
-    const response = await fetch(`${BASE_URL}/api/model-info`);
-
-    const text = await response.text();
-    console.log("RAW MODEL INFO:", text);
-
-    const payload = JSON.parse(text);
-
-    if (!ignore) {
-      setModelInfo(payload.modelInfo);
-      setModelReady(Boolean(payload.modelReady));
-      setHealthLogs(buildInitialBackendReadiness(payload));
-      setTrainingLogs(
-        payload.modelReady
-          ? ["Model is ready. New training lifecycle updates will appear after prediction requests."]
-          : ["Model is not trained yet. The first prediction will initialize training automatically."]
-      );
-      setPredictionLogs([]);
+      if (!authReady || !session || isAuthRoute) {
+        return;
+      }
+      try {
+        const response = await fetch(api("/api/model-info"));
+        const payload = await readJsonSafe(response);
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        if (!ignore) {
+          setModelInfo(payload.modelInfo);
+          setModelReady(Boolean(payload.modelReady));
+          setHealthLogs(buildInitialBackendReadiness(payload));
+          setTrainingLogs(
+            payload.modelReady
+              ? ["Model is ready. New training lifecycle updates will appear after prediction requests."]
+              : ["Model is not trained yet. The first prediction will initialize training automatically."]
+          );
+          setPredictionLogs([]);
+        }
+      } catch (fetchError) {
+        if (!ignore) {
+          setError(fetchError.message || "Unable to reach the backend services.");
+        }
+      }
     }
-  } catch (fetchError) {
-    console.log("MODEL INFO ERROR:", fetchError);
-
-    if (!ignore) {
-      setError(fetchError.message || "Unable to reach the backend services.");
-    }
-  }
-}
 
     loadModelInfo();
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [authReady, session, isAuthRoute]);
 
   useEffect(() => {
     if (!selectedFile) {
-      setPreviewUrl("");
       return undefined;
     }
     const url = URL.createObjectURL(selectedFile);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [selectedFile]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(UPLOAD_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.fileName) {
+        return;
+      }
+      setStoredUploadDetails(parsed);
+      if (parsed.previewDataUrl) {
+        setPreviewUrl(parsed.previewDataUrl);
+      }
+      if (parsed.cropType) {
+        setFarmForm({ cropType: parsed.cropType });
+      }
+    } catch (storageError) {
+      console.warn("Unable to restore upload details from localStorage", storageError);
+    }
+  }, []);
 
   useEffect(() => {
     if (!toast) {
@@ -213,11 +378,69 @@ function App() {
   }, [toast]);
 
   useEffect(() => {
-    if (!predictionResult || !resultSectionRef.current) {
+    if (!predictionResult || !resultSectionRef.current || !isResultRoute) {
       return;
     }
     resultSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [predictionResult]);
+  }, [predictionResult, isResultRoute, currentResultPage]);
+
+  useEffect(() => {
+    if (!session || isAuthRoute) {
+      return;
+    }
+    if (location.pathname === "/results") {
+      navigate("/results/1", { replace: true });
+    }
+  }, [location.pathname, navigate, session, isAuthRoute]);
+
+  useEffect(() => {
+    if (!session || isAuthRoute) {
+      return;
+    }
+    if (!isResultRoute) {
+      return;
+    }
+    if (!predictionResult) {
+      navigate("/", { replace: true });
+    }
+  }, [isResultRoute, predictionResult, navigate, session, isAuthRoute]);
+
+  function persistUploadDetails(file, overrideCropType) {
+    const activeCropType = overrideCropType || farmForm.cropType;
+    if (!file) {
+      setStoredUploadDetails(null);
+      window.localStorage.removeItem(UPLOAD_STORAGE_KEY);
+      return;
+    }
+
+    const basePayload = {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || "unknown",
+      lastModified: file.lastModified,
+      cropType: activeCropType,
+      storedAt: new Date().toISOString()
+    };
+
+    setStoredUploadDetails(basePayload);
+    window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(basePayload));
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const enrichedPayload = {
+        ...basePayload,
+        previewDataUrl: typeof reader.result === "string" ? reader.result : ""
+      };
+      setStoredUploadDetails(enrichedPayload);
+      window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(enrichedPayload));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function goToResultPage(page) {
+    const safePage = Math.max(1, Math.min(RESULT_PAGE_COUNT, Number(page) || 1));
+    navigate(`/results/${safePage}`);
+  }
 
   function triggerToastAlert(alertPayload) {
     if (!alertPayload?.shouldNotify) {
@@ -239,6 +462,85 @@ function App() {
     setNotificationStatus("Rain alert toast displayed successfully inside the portal.");
   }
 
+  function handleAuthInputChange(event) {
+    const { name, value } = event.target;
+    setAuthForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleSignup(event) {
+    event.preventDefault();
+    const email = normalizeEmail(authForm.email);
+    const password = String(authForm.password || "").trim();
+
+    if (!email || !password) {
+      setAuthError("Email and password are required.");
+      return;
+    }
+    if (password.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+    if (email === ADMIN_EMAIL && password !== ADMIN_PASSWORD) {
+      setAuthError("Admin account uses fixed credentials. Use admin123 for admin password.");
+      return;
+    }
+    if (authUsers.some((user) => normalizeEmail(user.email) === email)) {
+      setAuthError("This email is already registered. Please login.");
+      return;
+    }
+
+    const role = email === ADMIN_EMAIL ? "admin" : "user";
+    const newUser = {
+      email,
+      password,
+      role,
+      createdAt: new Date().toISOString()
+    };
+    const updatedUsers = [...authUsers, newUser];
+    saveUsersToStorage(updatedUsers);
+    setAuthUsers(updatedUsers);
+    setAuthNotice("Signup successful. Please login with your new credentials.");
+    setAuthError("");
+    setAuthForm({ email, password: "" });
+    navigate("/login", { replace: true });
+  }
+
+  function handleLogin(event) {
+    event.preventDefault();
+    const email = normalizeEmail(authForm.email);
+    const password = String(authForm.password || "").trim();
+    const matchedUser = authUsers.find(
+      (user) => normalizeEmail(user.email) === email && String(user.password) === password
+    );
+
+    if (!matchedUser) {
+      setAuthError("Invalid credentials. Please check your email and password.");
+      return;
+    }
+
+    const nextSession = {
+      email: matchedUser.email,
+      role: matchedUser.role || "user",
+      loggedInAt: new Date().toISOString()
+    };
+    window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
+    setAuthError("");
+    setAuthNotice("");
+    setAuthForm({ email: "", password: "" });
+    navigate("/", { replace: true });
+  }
+
+  function handleLogout() {
+    window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    setSession(null);
+    setPredictionResult(null);
+    setSelectedFile(null);
+    setPreviewUrl("");
+    setAuthNotice("You have been logged out.");
+    navigate("/login", { replace: true });
+  }
+
   async function handlePredict(event) {
     event.preventDefault();
     if (!selectedFile) {
@@ -256,13 +558,13 @@ function App() {
       formData.append("image", selectedFile);
       formData.append("cropType", farmForm.cropType);
 
-      const response = await fetch(`${BASE_URL}/predict`, {
+      const response = await fetch(api("/api/predict"), {
         method: "POST",
         body: formData
       });
 
       setBackgroundStatus("Prediction computed. Preparing explainable outputs and confidence chart...");
-      const payload = await response.json();
+      const payload = await readJsonSafe(response);
       if (!response.ok) {
         throw new Error(payload.error || "Prediction failed.");
       }
@@ -279,12 +581,138 @@ function App() {
       setTrainingLogs(payload?.systemNotes?.trainingLog || extractTrainingLogFromPrediction(payload));
       setPredictionLogs(payload?.systemNotes?.predictionLog || payload?.logs || []);
       setBackgroundStatus("Completed. Results are now visible below.");
+      goToResultPage(1);
     } catch (predictError) {
       setError(predictError.message || "Prediction failed.");
       setBackgroundStatus("Prediction failed. Please check the error and try again.");
     } finally {
       setIsPredicting(false);
     }
+  }
+
+  const trainingHistory = predictionResult?.modelPerformance?.history || [];
+  const lossSeries = (predictionResult?.modelPerformance?.lossSeries || []).map((item) => ({
+    epoch: item.epoch,
+    train: item.train,
+    validation: item.validation
+  }));
+  const accuracySeries = (predictionResult?.modelPerformance?.accuracySeries || []).map((item) => ({
+    epoch: item.epoch,
+    train: item.train,
+    validation: item.validation
+  }));
+  const datasetMetrics = predictionResult?.modelPerformance?.datasetMetrics || {};
+  const activeResultPage = currentResultPage || 1;
+
+  if (!authReady) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card panel">
+          <p className="section-label">Initializing</p>
+          <h1>Preparing secure workspace...</h1>
+          <p className="muted">Loading authentication and local session state.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session || isAuthRoute) {
+    const isSignupMode = isSignupRoute;
+    return (
+      <div className="auth-shell">
+        <div className="background-glow background-glow-left" />
+        <div className="background-glow background-glow-right" />
+        <section className="auth-card panel">
+          <p className="section-label">Secure Access</p>
+          <h1>{isSignupMode ? "Create your account" : "Welcome back"}</h1>
+          <p className="auth-subtitle">
+            Login to continue with rainfall prediction workflows. Admin route is protected for{" "}
+            <strong>{ADMIN_EMAIL}</strong>.
+          </p>
+
+          
+
+          {authNotice ? <p className="auth-message auth-message-success">{authNotice}</p> : null}
+          {authError ? <p className="auth-message auth-message-error">{authError}</p> : null}
+
+          <form onSubmit={isSignupMode ? handleSignup : handleLogin} className="stacked-form auth-form">
+            <label>
+              <span>Email</span>
+              <input
+                type="email"
+                name="email"
+                value={authForm.email}
+                onChange={handleAuthInputChange}
+                placeholder="you@example.com"
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                value={authForm.password}
+                onChange={handleAuthInputChange}
+                placeholder="Enter password"
+                autoComplete={isSignupMode ? "new-password" : "current-password"}
+                required
+              />
+            </label>
+
+            <button type="submit" className="primary-button">
+              {isSignupMode ? "Sign up" : "Login"}
+            </button>
+          </form>
+
+          <div className="auth-switch">
+            {isSignupMode ? (
+              <p>
+                Already registered? <Link to="/login">Go to login</Link>
+              </p>
+            ) : (
+              <p>
+                New user? <Link to="/signup">Create an account</Link>
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (isAdminRoute && session.role === "admin") {
+    return (
+      <div className="page-shell">
+        <div className="background-glow background-glow-left" />
+        <div className="background-glow background-glow-right" />
+        <main className="app-shell">
+          <section className="panel admin-panel">
+            <div className="admin-panel-header">
+              <div>
+                <p className="section-label">Admin Dashboard</p>
+                <h1>Protected admin access</h1>
+                <p className="muted">Only admin users can view registered credential records.</p>
+              </div>
+              <div className="admin-actions">
+                <Link className="secondary-button route-button" to="/">Back to app</Link>
+                <button type="button" className="secondary-button route-button" onClick={handleLogout}>Logout</button>
+              </div>
+            </div>
+            <div className="admin-user-grid">
+              {authUsers.map((user) => (
+                <article key={`${user.email}-${user.createdAt}`} className="admin-user-card">
+                  <p><strong>Email:</strong> {user.email}</p>
+                  <p><strong>Role:</strong> {user.role || "user"}</p>
+                  <p><strong>Created:</strong> {new Date(user.createdAt).toLocaleString()}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -294,6 +722,23 @@ function App() {
       {toast ? <PortalToast toast={toast} onClose={() => setToast(null)} /> : null}
 
       <main className="app-shell">
+        <section className="panel app-toolbar">
+          <div className="app-toolbar-left">
+            <p className="section-label">Logged In</p>
+            <h2>{session.email}</h2>
+          </div>
+          <div className="app-toolbar-actions">
+            {session.role === "admin" ? (
+              <Link className="secondary-button route-button" to="/admin">
+                Admin panel
+              </Link>
+            ) : null}
+            <button type="button" className="secondary-button route-button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </section>
+
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow portal-name">V2S Rainfall Prediction And Crop Safety Portal</p>
@@ -325,54 +770,6 @@ function App() {
             </div>
           </div>
 
-          <div className="hero-card panel">
-            <p className="section-label">Novelty Highlights</p>
-            {modelInfo ? (
-              <>
-                <div className="feature-promo-card">
-                  <h3>Why did AI predict rain? - Explainable AI</h3>
-                  <p className="muted">
-                    Grad-CAM highlights the cloud regions that pushed the model toward the rain class.
-                  </p>
-                  <div className="badge-row">
-                    <span className="badge-pill innovation-pill">First free XAI rainfall tool</span>
-                    <span className="badge-pill">SDG 13 - Climate Action</span>
-                  </div>
-                </div>
-                <div className="feature-promo-card">
-                  <h3>Smart Farm Rain Alert</h3>
-                  <p className="muted">
-                    Toast-style alerts and crop-specific advisory appear when cloud-image rain confidence exceeds 70%.
-                  </p>
-                  <div className="badge-row">
-                    <span className="badge-pill">SDG 2</span>
-                    <span className="badge-pill">SDG 8</span>
-                    <span className="badge-pill">SDG 13</span>
-                  </div>
-                </div>
-                <div className="stat-row">
-                  <span>Status</span>
-                  <strong>{modelReady ? "Model ready" : "Waiting for first prediction"}</strong>
-                </div>
-                <div className="stat-row">
-                  <span>Pooling</span>
-                  <strong>
-                    {modelInfo.architecture.poolSize}x{modelInfo.architecture.poolSize} stride {modelInfo.architecture.poolStride}
-                  </strong>
-                </div>
-                <div className="stat-row">
-                  <span>Hidden units</span>
-                  <strong>{modelInfo.architecture.hiddenUnits}</strong>
-                </div>
-                <div className="stat-row">
-                  <span>Classes</span>
-                  <strong>{(modelInfo.classLabels || []).join(" / ")}</strong>
-                </div>
-              </>
-            ) : (
-              <p className="muted">Connecting to the backend services.</p>
-            )}
-          </div>
         </section>
 
         <section className="workspace-grid workspace-grid-single">
@@ -385,7 +782,11 @@ function App() {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setSelectedFile(file);
+                    persistUploadDetails(file);
+                  }}
                 />
               </label>
 
@@ -394,9 +795,21 @@ function App() {
                   <span>Crop type</span>
                   <select
                     value={farmForm.cropType}
-                    onChange={(event) =>
-                      setFarmForm((current) => ({ ...current, cropType: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const nextCropType = event.target.value;
+                      setFarmForm((current) => ({ ...current, cropType: nextCropType }));
+                      if (selectedFile) {
+                        persistUploadDetails(selectedFile, nextCropType);
+                      } else if (storedUploadDetails) {
+                        const updatedDetails = {
+                          ...storedUploadDetails,
+                          cropType: nextCropType,
+                          storedAt: new Date().toISOString()
+                        };
+                        setStoredUploadDetails(updatedDetails);
+                        window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(updatedDetails));
+                      }
+                    }}
                   >
                     {cropOptions.map((crop) => (
                       <option key={crop} value={crop}>
@@ -411,6 +824,23 @@ function App() {
                 Rainfall alerting and advisory are now generated purely from cloud-image confidence
                 and selected crop type.
               </p>
+
+              {storedUploadDetails ? (
+                <div className="saved-upload-card">
+                  <p className="section-label">Saved Upload Details</p>
+                  <p><strong>Name:</strong> {storedUploadDetails.fileName}</p>
+                  <p><strong>Type:</strong> {storedUploadDetails.fileType}</p>
+                  <p><strong>Size:</strong> {formatFileSize(storedUploadDetails.fileSize)}</p>
+                  <p><strong>Crop:</strong> {storedUploadDetails.cropType}</p>
+                  <p className="muted">
+                    Stored locally on this browser at{" "}
+                    {storedUploadDetails.storedAt
+                      ? new Date(storedUploadDetails.storedAt).toLocaleString()
+                      : "unknown time"}
+                    . Re-select the file to run a fresh prediction.
+                  </p>
+                </div>
+              ) : null}
 
               {previewUrl ? (
                 <div className="preview-frame">
@@ -454,6 +884,49 @@ function App() {
 
         {predictionResult ? (
           <>
+            <section className="panel result-route-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="section-label">Result Routing</p>
+                  <h2>Prediction results are shown page by page</h2>
+                </div>
+                <div className="result-route-actions">
+                  <button
+                    type="button"
+                    className="secondary-button route-button"
+                    onClick={() => goToResultPage(activeResultPage - 1)}
+                    disabled={!isResultRoute || activeResultPage <= 1}
+                  >
+                    Previous page
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button route-button"
+                    onClick={() => goToResultPage(activeResultPage + 1)}
+                    disabled={!isResultRoute || activeResultPage >= RESULT_PAGE_COUNT}
+                  >
+                    Next page
+                  </button>
+                </div>
+              </div>
+              <div className="result-step-links">
+                {[1, 2, 3, 4, 5].map((page) => (
+                  <Link
+                    key={`result-page-${page}`}
+                    to={`/results/${page}`}
+                    className={`result-step-link ${isResultRoute && activeResultPage === page ? "active" : ""}`}
+                  >
+                    Page {page}
+                  </Link>
+                ))}
+              </div>
+              {!isResultRoute ? (
+                <p className="muted">Open a result page above to view section-wise outputs.</p>
+              ) : null}
+            </section>
+
+            {isResultRoute && activeResultPage === 1 ? (
+              <>
             <section className="panel" ref={resultSectionRef}>
               <div className="section-heading">
                 <div>
@@ -529,6 +1002,121 @@ function App() {
             <section className="panel">
               <div className="section-heading">
                 <div>
+                  <p className="section-label">Rainfall And Error Metrics</p>
+                  <h2>Rain intensity and dataset-level performance summary</h2>
+                </div>
+              </div>
+
+              <div className="metrics-grid">
+                <article className="metric-card">
+                  <p className="metric-title">Estimated rainfall amount</p>
+                  <h3>{formatMillimeterPerHour(predictionResult.rainfallAmount?.mmPerHour)}</h3>
+                  <p className="muted">{predictionResult.rainfallAmount?.intensityBand}</p>
+                  <p className="formula-text">{predictionResult.rainfallAmount?.formula}</p>
+                </article>
+
+                <article className="metric-card">
+                  <p className="metric-title">Average MSE (whole dataset)</p>
+                  <h3>{Number(datasetMetrics.averageMSE || 0).toFixed(6)}</h3>
+                  <p className="muted">
+                    Computed over {datasetMetrics.sampleCount || 0} samples after training.
+                  </p>
+                </article>
+
+                <article className="metric-card">
+                  <p className="metric-title">Average dataset accuracy</p>
+                  <h3>{formatPercent(datasetMetrics.averageAccuracy || 0)}</h3>
+                  <p className="muted">
+                    Average loss: {Number(datasetMetrics.averageLoss || 0).toFixed(6)}
+                  </p>
+                </article>
+              </div>
+            </section>
+
+              </>
+            ) : null}
+
+            {isResultRoute && activeResultPage === 2 ? (
+              <>
+            <section className="panel">
+              <div className="section-heading">
+                <div>
+                  <p className="section-label">Model Graphs</p>
+                  <h2>Loss curves, accuracy visualization, and result bar charts</h2>
+                </div>
+              </div>
+
+              {trainingHistory.length ? (
+                <>
+                  <div className="viz-grid">
+                    <LineChartCard
+                      title="Loss Graph"
+                      subtitle="Train vs validation loss across epochs"
+                      points={lossSeries}
+                      series={[
+                        { key: "train", label: "Train loss", color: "#67e8f9" },
+                        { key: "validation", label: "Validation loss", color: "#fbbf24" }
+                      ]}
+                    />
+                    <LineChartCard
+                      title="Accuracy Graph"
+                      subtitle="Train vs validation accuracy across epochs"
+                      points={accuracySeries}
+                      series={[
+                        { key: "train", label: "Train accuracy", color: "#34d399" },
+                        { key: "validation", label: "Validation accuracy", color: "#60a5fa" }
+                      ]}
+                    />
+                    <LineChartCard
+                      title="Validation MSE Graph"
+                      subtitle="Validation MSE progression across epochs"
+                      points={trainingHistory.map((item) => ({
+                        epoch: item.epoch,
+                        mse: item.validationMSE
+                      }))}
+                      series={[
+                        { key: "mse", label: "Validation MSE", color: "#fb7185" }
+                      ]}
+                    />
+                    <BarChartCard
+                      title="Prediction Bar Chart"
+                      subtitle="Current result distribution"
+                      items={[
+                        {
+                          label: "No-rain probability",
+                          value: predictionResult.prediction.probabilities?.[0]?.value || 0,
+                          color: "#8a9aa7"
+                        },
+                        {
+                          label: "Rain probability",
+                          value: predictionResult.prediction.probabilities?.[1]?.value || 0,
+                          color: "#29b6d1"
+                        },
+                        {
+                          label: "Prediction confidence",
+                          value: predictionResult.prediction.confidence || 0,
+                          color: "#ffd08c"
+                        },
+                        {
+                          label: "Dataset average MSE",
+                          value: Math.min(1, Number(datasetMetrics.averageMSE || 0)),
+                          color: "#f97316"
+                        }
+                      ]}
+                    />
+                  </div>
+
+                </>
+              ) : (
+                <p className="muted">
+                  Training history will appear after training metadata is available.
+                </p>
+              )}
+            </section>
+
+            <section className="panel">
+              <div className="section-heading">
+                <div>
                   <p className="section-label">Confidence Analytics</p>
                   <h2>Rainfall confidence chart from the uploaded cloud image</h2>
                 </div>
@@ -590,6 +1178,11 @@ function App() {
               </div>
             </section>
 
+              </>
+            ) : null}
+
+            {isResultRoute && activeResultPage === 3 ? (
+              <>
             <section className="panel">
               <div className="section-heading">
                 <div>
@@ -769,6 +1362,11 @@ function App() {
               </div>
             </section>
 
+              </>
+            ) : null}
+
+            {isResultRoute && activeResultPage === 4 ? (
+              <>
             <section className="panel">
               <div className="section-heading">
                 <div>
@@ -842,6 +1440,11 @@ function App() {
               </div>
             </section>
 
+              </>
+            ) : null}
+
+            {isResultRoute && activeResultPage === 5 ? (
+              <>
             <section className="panel">
               <div className="section-heading">
                 <div>
@@ -936,6 +1539,30 @@ function App() {
               </div>
             </section>
 
+            <section className="panel">
+              <div className="section-heading">
+                <div>
+                  <p className="section-label">Prediction Logs</p>
+                  <h2>Backend processing logs after result generation</h2>
+                </div>
+              </div>
+              <article className="log-card">
+                <h3>Post-result prediction log</h3>
+                {(predictionResult?.systemNotes?.predictionLog || predictionLogs || []).length ? (
+                  <div className="log-list">
+                    {(predictionResult?.systemNotes?.predictionLog || predictionLogs || []).map((line, index) => (
+                      <p key={`post-result-log-${index}`}>{line}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">No prediction logs available yet.</p>
+                )}
+              </article>
+            </section>
+
+              </>
+            ) : null}
+
           </>
         ) : null}
       </main>
@@ -1013,6 +1640,111 @@ function MathTraceCard({ item }) {
   );
 }
 
+function LineChartCard({ title, subtitle, points, series }) {
+  const width = 620;
+  const height = 260;
+  const padding = 28;
+  const safePoints = points || [];
+
+  const allValues = [];
+  safePoints.forEach((point) => {
+    series.forEach((line) => {
+      const value = Number(point[line.key]);
+      if (Number.isFinite(value)) {
+        allValues.push(value);
+      }
+    });
+  });
+
+  const minValue = allValues.length ? Math.min(...allValues) : 0;
+  const maxValue = allValues.length ? Math.max(...allValues) : 1;
+  const valueRange = Math.max(maxValue - minValue, 1e-6);
+
+  function xForIndex(index) {
+    if (safePoints.length <= 1) {
+      return width / 2;
+    }
+    return padding + ((width - (padding * 2)) * index) / (safePoints.length - 1);
+  }
+
+  function yForValue(value) {
+    const normalized = (Number(value) - minValue) / valueRange;
+    return (height - padding) - normalized * (height - (padding * 2));
+  }
+
+  return (
+    <article className="viz-card">
+      <h3>{title}</h3>
+      <p className="muted">{subtitle}</p>
+      <svg viewBox={`0 0 ${width} ${height}`} className="line-chart" role="img" aria-label={title}>
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="chart-axis" />
+        <line x1={padding} y1={padding} x2={padding} y2={height - padding} className="chart-axis" />
+
+        {series.map((line) => {
+          const polylinePoints = safePoints
+            .map((point, index) => `${xForIndex(index)},${yForValue(point[line.key])}`)
+            .join(" ");
+
+          return (
+            <polyline
+              key={line.key}
+              points={polylinePoints}
+              fill="none"
+              stroke={line.color}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+
+        {safePoints.map((point, index) => (
+          <text key={`epoch-${point.epoch}-${index}`} x={xForIndex(index)} y={height - 8} className="chart-label">
+            {point.epoch}
+          </text>
+        ))}
+      </svg>
+      <div className="chart-legend">
+        {series.map((line) => (
+          <span key={line.key}>
+            <i style={{ background: line.color }} />
+            {line.label}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function BarChartCard({ title, subtitle, items }) {
+  const bars = items || [];
+  return (
+    <article className="viz-card">
+      <h3>{title}</h3>
+      <p className="muted">{subtitle}</p>
+      <div className="chart-bars">
+        {bars.map((item) => (
+          <div key={item.label} className="chart-bar-row">
+            <div className="probability-labels">
+              <span>{item.label}</span>
+              <strong>{formatPercent(item.value)}</strong>
+            </div>
+            <div className="probability-track">
+              <div
+                className="probability-fill"
+                style={{
+                  width: formatPercent(item.value),
+                  background: `linear-gradient(90deg, ${item.color}, #ecfeff)`
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function PortalToast({ toast, onClose }) {
   return (
     <div className={`portal-toast ${toast.variant || "info"}`}>
@@ -1030,6 +1762,3 @@ function PortalToast({ toast, onClose }) {
 }
 
 export default App;
-
-
-
